@@ -1,0 +1,93 @@
+{
+  "name": "img-tree",
+  "publisher": "zhouyinkui",
+  "displayName": "ImgTree",
+  "description": "Visual Image Explorer for VS Code",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.38.0",
+    "node": ">=12"
+  },
+  "license": "MIT",
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YamadaAoi/img-tree"
+  },
+  "categories": [
+    "Visualization",
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "ImgTree.imagesExtract",
+        "title": "✨️ImgTree"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "ImgTree.imagesExtract",
+          "when": "resourceScheme == file && explorerResourceIsFolder",
+          "group": "preview"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "postinstall": "npx simple-git-hooks",
+    "vscode:prepublish": "pnpm run package",
+    "compile": "pnpm run check-types && pnpm run lint && node esbuild.js",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "package": "pnpm run check-types && pnpm run lint && node esbuild.js --production",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "pnpm run compile-tests && pnpm run compile && pnpm run lint",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src",
+    "format": "prettier --write src",
+    "test": "vscode-test",
+    "dev-vue": "pnpm --filter \"img-viewer\" dev",
+    "build-vue": "pnpm --filter \"img-viewer\" build",
+    "csadd": "changeset",
+    "csver": "pnpm changeset version",
+    "vsix": "pnpm build-vue && vsce package"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.29.6",
+    "@types/fs-extra": "^11.0.4",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@types/vscode": "^1.38.0",
+    "@typescript-eslint/eslint-plugin": "^8.31.1",
+    "@typescript-eslint/parser": "^8.31.1",
+    "@vscode/test-cli": "^0.0.11",
+    "@vscode/test-electron": "^2.5.2",
+    "esbuild": "^0.25.3",
+    "eslint": "^9.25.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.3",
+    "fast-glob": "^3.3.3",
+    "fs-extra": "^11.3.0",
+    "lint-staged": "^16.1.2",
+    "npm-run-all": "^4.1.5",
+    "prettier": "^3.6.2",
+    "simple-git-hooks": "^2.13.0",
+    "typescript": "^5.8.3"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "npx lint-staged --concurrent false"
+  },
+  "lint-staged": {
+    "*": [
+      "prettier --write --cache --ignore-unknown"
+    ],
+    "*.{js,jsx,ts,tsx,vue}": [
+      "eslint --fix"
+    ]
+  }
+}
