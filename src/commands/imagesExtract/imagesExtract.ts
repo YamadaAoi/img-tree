@@ -65,7 +65,7 @@ export async function imagesExtract(
           console.error(err)
           panel.webview.postMessage({
             command: 'dataDirectory',
-            data: { code: '500', message: '✨ImgTree fetch directory failed' }
+            data: { code: '500', message: 'ImgTree fetch directory failed' }
           })
         })
     } else if (message.command === 'fetchImages') {
@@ -90,7 +90,7 @@ export async function imagesExtract(
           console.error(err)
           panel.webview.postMessage({
             command: 'dataImages',
-            data: { code: '500', message: '✨ImgTree fetch images failed' }
+            data: { code: '500', message: 'ImgTree fetch images failed' }
           })
         })
     }

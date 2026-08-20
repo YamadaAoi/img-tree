@@ -2,7 +2,7 @@
 
 Visual Image Explorer for VS Code.
 
-在 VS Code 中以可视化方式浏览和管理项目中的图片资源。
+在 VS Code 中以可视化方式浏览项目中的图片资源
 
 ![preview](screenshot/panel.png)
 

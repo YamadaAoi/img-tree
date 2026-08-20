@@ -169,6 +169,7 @@ function chooseFile(data?: DirectoryNode | ImageNode) {
 .img-viewer {
   width: 100%;
   height: 100%;
+  border-top: 1px solid var(--app-border-color);
   display: flex;
   align-items: flex-start;
   justify-content: center;
