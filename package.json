@@ -21,6 +21,29 @@
   "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
+    "configuration": {
+      "title": "✨ImgTree configuration",
+      "type": "object",
+      "properties": {
+        "ImgTree.excludeFolders": {
+          "type": "array",
+          "default": [
+            "**/node_modules"
+          ],
+          "description": "Exclude folders"
+        },
+        "ImgTree.imgTypes": {
+          "type": "string",
+          "default": "*.{jpg,jpeg,png,svg,gif,webp,bmp,tiff,avif}",
+          "description": "Image types to extract"
+        },
+        "ImgTree.excludeFiles": {
+          "type": "array",
+          "default": [],
+          "description": "Exclude files"
+        }
+      }
+    },
     "commands": [
       {
         "command": "ImgTree.imagesExtract",

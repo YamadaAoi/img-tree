@@ -1,3 +1,4 @@
+import * as vscdoe from 'vscode'
 import path from 'node:path'
 import fg from 'fast-glob'
 
@@ -9,6 +10,8 @@ interface DirectoryNode {
 }
 
 export async function scanDirectories(rootDir: string) {
+  const config = vscdoe.workspace.getConfiguration('ImgTree')
+  const ignore = config.get<string[]>('excludeFolders')
   // 使用 glob 获取所有子目录（包括嵌套）
   const dirPaths = await fg('**/', {
     cwd: rootDir,
@@ -16,7 +19,7 @@ export async function scanDirectories(rootDir: string) {
     absolute: false, // 相对路径（相对于 cwd）
     deep: 10, // 最大递归深度（避免无限深）
     suppressErrors: true, // 忽略无法访问的目录错误
-    ignore: ['node_modules']
+    ignore
   })
 
   // 添加根目录本身
