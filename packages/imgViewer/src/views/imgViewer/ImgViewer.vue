@@ -1,45 +1,37 @@
 <template>
   <div class="img-viewer">
-    <div class="folder-tree">
-      <ElTree
-        :data="folders"
-        node-key="path"
-        :current-node-key="curKey"
-        :default-expand-all="true"
-        :highlight-current="true"
-        :check-on-click-node="true"
-        :expand-on-click-node="false"
-        :props="{
-          label: 'name'
-        }"
-        @current-change="pickFolder"
-      />
-    </div>
-    <div class="file-body" @click.stop="chooseFile()">
-      <div
-        v-for="item in files"
-        :key="item.path"
-        :class="['file-item', item.path === curPath ? 'picked' : '']"
-        @dblclick.stop="pickFolder(item)"
-      >
-        <div class="file-icon" @click.stop="chooseFile(item)">
-          <ElImage
-            class="file-img"
-            :src="item.type === 'file' ? item.path : folder"
-            fit="scale-down"
-            lazy
-            show-progress
+    <ElSplitter>
+      <ElSplitterPanel :size="300">
+        <div class="folders">
+          <FolderTree
+            :folders="folders"
+            :cur-key="curKey"
+            @pick-folder="pickFolder"
           />
         </div>
-        <div
-          class="file-name"
-          :title="item.name"
-          @click.stop="clipboard(item.name)"
-        >
-          {{ item.name }}
+      </ElSplitterPanel>
+      <ElSplitterPanel>
+        <div class="files">
+          <div class="filters">
+            <FileName v-model:keywords="keywords" />
+            <FileType
+              :types="fileTypes"
+              v-model:selected-types="selectedFileTypes"
+            />
+          </div>
+          <div class="list">
+            <FileList
+              :files="files"
+              :cur-path="curPath"
+              :selected-types="selectedFileTypes"
+              :keywords="keywords"
+              @pick-folder="pickFolder"
+              @choose-file="chooseFile"
+            />
+          </div>
         </div>
-      </div>
-    </div>
+      </ElSplitterPanel>
+    </ElSplitter>
     <ElImageViewer
       v-if="previewIndex > -1"
       show-progress
@@ -52,24 +44,13 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { ElTree, ElImage, ElImageViewer } from 'element-plus'
-import { clipboard } from '@/util'
+import { ElImageViewer, ElSplitter, ElSplitterPanel } from 'element-plus'
+import FolderTree from './folderTree/FolderTree.vue'
+import FileList from './fileList/FileList.vue'
+import FileType from './fileType/FileType.vue'
+import FileName from './fileName/FileName.vue'
 import { vscodeApi } from '@/api/vscode'
-import folder from '@/assets/images/folder.svg'
-
-interface DirectoryNode {
-  name: string
-  path: string
-  type: 'directory'
-  children: DirectoryNode[]
-}
-
-interface ImageNode {
-  name: string
-  path: string
-  type: 'file'
-  ext: string
-}
+import type { DirectoryNode, ImageNode } from './imgViewerAble'
 
 const prevState = vscodeApi.getState()
 const init = ref(true)
@@ -81,6 +62,9 @@ const previewIndex = ref(-1)
 const imageList = computed(() =>
   files.value.filter(f => f.type === 'file').map(f => f.path)
 )
+const fileTypes = ref<string[]>([])
+const selectedFileTypes = ref<string[]>([])
+const keywords = ref('')
 
 onMounted(() => {
   window.addEventListener('message', onMessage)
@@ -93,33 +77,45 @@ onBeforeUnmount(() => {
 
 function onMessage(event: MessageEvent) {
   const message = event.data
-  if (message.command === 'dataDirectory') {
-    if (message.data.code === '200') {
-      folders.value = message.data.data ?? []
-      if (folders.value.length) {
-        const prevFolder = curKey.value
-          ? findFolderByPath(curKey.value)
-          : undefined
-        if (prevFolder) {
-          pickFolder(prevFolder)
-        } else {
-          pickFolder(folders.value[0])
-        }
-      }
+  if (message.command === 'dataDirectory' && message.data.code === '200') {
+    onDataDirectory(message.data.data ?? [])
+  } else if (message.command === 'dataImages' && message.data.code === '200') {
+    onDataImages(message.data.data ?? [])
+  }
+}
+
+function onDataDirectory(data: DirectoryNode[]) {
+  folders.value = data
+  if (folders.value.length) {
+    const prevFolder = curKey.value ? findFolderByPath(curKey.value) : undefined
+    if (prevFolder) {
+      pickFolder(prevFolder)
+    } else {
+      pickFolder(folders.value[0])
     }
-  } else if (message.command === 'dataImages') {
-    if (message.data.code === '200') {
-      files.value = files.value.concat(message.data.data ?? [])
-      if (init.value) {
-        init.value = false
-        const prevFile = curPath.value
-          ? files.value.find(f => f.path === curPath.value)
-          : undefined
-        chooseFile(prevFile)
-      } else {
-        chooseFile()
-      }
+  }
+}
+
+function onDataImages(data: ImageNode[]) {
+  const types: string[] = []
+  data.forEach(f => {
+    const ext = f.ext?.replace('.', '')
+    if (ext && types.indexOf(ext) === -1) {
+      types.push(ext)
     }
+  })
+  fileTypes.value = types.concat()
+  selectedFileTypes.value = types.concat()
+
+  files.value = files.value.concat(data)
+  if (init.value) {
+    init.value = false
+    const prevFile = curPath.value
+      ? files.value.find(f => f.path === curPath.value)
+      : undefined
+    chooseFile(prevFile)
+  } else {
+    chooseFile()
   }
 }
 
@@ -169,73 +165,30 @@ function chooseFile(data?: DirectoryNode | ImageNode) {
 .img-viewer {
   width: 100%;
   height: 100%;
-  border-top: 1px solid var(--app-border-color);
+  border-top: 2px solid var(--el-border-color-light);
   display: flex;
   align-items: flex-start;
   justify-content: center;
 
-  .folder-tree {
-    width: 300px;
+  .folders {
+    width: 100%;
     height: 100%;
     padding: 14px;
-    border-right: 1px solid var(--app-border-color);
-    overflow: auto;
   }
 
-  .file-body {
-    width: calc(100% - 300px);
+  .files {
+    width: 100%;
     height: 100%;
-    padding: 16px;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, 158px);
-    grid-gap: 16px;
-    align-content: start;
-    justify-content: start;
-    overflow-y: auto;
-
-    .file-item {
-      width: 158px;
-      height: 178px;
-      position: relative;
-      padding: 6px 6px 0 6px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.2s ease;
-
-      .file-icon {
-        width: 100%;
-        height: calc(100% - 30px);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-
-        .file-img {
-          width: 100%;
-          height: 100%;
-        }
-      }
-
-      .file-name {
-        width: 100%;
-        height: 30px;
-        line-height: 30px;
-        cursor: copy;
-        color: var(--app-item-label);
-        text-align: center;
-        font-size: 14px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-
-      &:hover {
-        background-color: var(--app-item-hover-bg-color);
-      }
+    .filters {
+      width: 100%;
+      height: 64px;
+      padding: 0 16px;
+      border-bottom: 2px solid var(--el-border-color-light);
     }
-    .picked {
-      background-color: var(--app-item-hover-bg-color);
+    .list {
+      width: 100%;
+      height: calc(100% - 64px);
+      padding: 16px;
     }
   }
 

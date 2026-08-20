@@ -1,3 +1,10 @@
+body {
+  --app-item-label: #606266;
+  --app-item-hover-bg-color: #c0c4cc;
+  --app-mark-bg-color: rgba(245, 158, 11, 0.15);
+  --app-mark-color: #b45309;
+}
+
 body.vscode-dark {
   /* color-scheme: dark; */
   --el-color-primary: #409eff;
@@ -75,7 +82,8 @@ body.vscode-dark {
 
   --app-item-label: rgb(156, 220, 254);
   --app-item-hover-bg-color: rgba(204, 232, 255, 0.3);
-  --app-border-color: rgba(204, 232, 255, 0.3);
+  --app-mark-bg-color: rgba(251, 191, 36, 0.2);
+  --app-mark-color: #fcd34d;
 }
 body.vscode-dark .el-button {
   --el-button-disabled-text-color: rgba(255, 255, 255, 0.5);
