@@ -1,8 +1,10 @@
 import type { WebviewApi } from 'vscode-webview'
 
-interface CurState {
+export interface CurState {
   folder?: string
   file?: string
+  selectedFileTypes?: string[]
+  keywords?: string
 }
 
 class VscodeApi {
@@ -20,9 +22,12 @@ class VscodeApi {
     })
   }
 
-  fetchDirectory() {
+  fetchDirectory(state: CurState) {
     this.#vscode?.postMessage({
-      command: 'fetchDirectory'
+      command: 'fetchDirectory',
+      data: {
+        state
+      }
     })
   }
 
@@ -35,12 +40,20 @@ class VscodeApi {
     })
   }
 
+  mergeState(state: CurState) {
+    const prevState = this.getState()
+    this.setState({
+      ...prevState,
+      ...state
+    })
+  }
+
   setState(state: CurState) {
     this.#vscode?.setState(state)
   }
 
   getState() {
-    return this.#vscode?.getState() as CurState
+    return (this.#vscode?.getState() ?? {}) as CurState
   }
 }
 

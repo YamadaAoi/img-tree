@@ -21,11 +21,11 @@ const props = defineProps<{
   keywords: string
 }>()
 const emits = defineEmits<{
-  (e: 'update:keywords', val: string): void
+  (e: 'keywordsChange', val: string): void
 }>()
 
 function onKeywordsChange(val: string) {
-  emits('update:keywords', val)
+  emits('keywordsChange', val)
 }
 </script>
 

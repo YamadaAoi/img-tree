@@ -26,17 +26,7 @@ const props = defineProps<{
 }>()
 const filterText = computed(() => {
   const origin = props.keywords ? `${props.keywords}` : ''
-  let str = origin
-  if (/(\+|-|&|\||!|\(|\)|\{|\}|\[|\]|\^|”|~|\*|\?|:|\\)/g.test(origin)) {
-    // 把匹配到的特殊字符 替换成 转义符+原来的字符
-    str = origin.replace(
-      /(\+|-|&|\||!|\(|\)|\{|\}|\[|\]|\^|”|~|\*|\?|:|\\)/g,
-      `\\${
-        origin.match(/(\+|-|&|\||!|\(|\)|\{|\}|\[|\]|\^|”|~|\*|\?|:|\\)/g)?.[0]
-      }`
-    )
-  }
-  return str
+  return origin.replace(/[-\\^$|?*+(){}.\/]/g, '\\$&')
 })
 const arr = computed(() =>
   props.text && filterText.value

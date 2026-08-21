@@ -13,17 +13,17 @@
       <ElSplitterPanel>
         <div class="files">
           <div class="filters">
-            <FileName v-model:keywords="keywords" />
+            <FileName :keywords="keywords" @keywordsChange="onKeywordsChange" />
             <FileType
               :types="fileTypes"
-              v-model:selected-types="selectedFileTypes"
+              :selected-types="selectedFileTypes"
+              @selectedTypesChange="onSelectedTypesChange"
             />
           </div>
           <div class="list">
             <FileList
-              :files="files"
+              :files="filteredFiles"
               :cur-path="curPath"
-              :selected-types="selectedFileTypes"
               :keywords="keywords"
               @pick-folder="pickFolder"
               @choose-file="chooseFile"
@@ -49,26 +49,42 @@ import FolderTree from './folderTree/FolderTree.vue'
 import FileList from './fileList/FileList.vue'
 import FileType from './fileType/FileType.vue'
 import FileName from './fileName/FileName.vue'
-import { vscodeApi } from '@/api/vscode'
+import { vscodeApi, type CurState } from '@/api/vscode'
 import type { DirectoryNode, ImageNode } from './imgViewerAble'
 
-const prevState = vscodeApi.getState()
-const init = ref(true)
 const folders = ref<DirectoryNode[]>([])
-const curKey = ref(prevState?.folder ?? '')
+const curKey = ref('')
 const files = ref<Array<DirectoryNode | ImageNode>>([])
-const curPath = ref(prevState?.file ?? '')
-const previewIndex = ref(-1)
-const imageList = computed(() =>
-  files.value.filter(f => f.type === 'file').map(f => f.path)
-)
+const curPath = ref('')
 const fileTypes = ref<string[]>([])
 const selectedFileTypes = ref<string[]>([])
 const keywords = ref('')
+const filteredFiles = computed(() => {
+  return files.value.filter(item => {
+    return (
+      ((item.type === 'file' &&
+        item.ext &&
+        selectedFileTypes.value.includes(item.ext)) ||
+        item.type === 'directory') &&
+      item.name.includes(keywords.value)
+    )
+  })
+})
+const filteredImageFiles = computed(() =>
+  filteredFiles.value.filter(f => f.type === 'file')
+)
+const imageList = computed(() => filteredImageFiles.value.map(f => f.uri))
+const previewIndex = computed(() => {
+  let index = -1
+  if (curPath.value) {
+    index = filteredImageFiles.value.findIndex(f => f.path === curPath.value)
+  }
+  return index
+})
 
 onMounted(() => {
   window.addEventListener('message', onMessage)
-  vscodeApi.fetchDirectory()
+  vscodeApi.fetchDirectory(vscodeApi.getState())
 })
 
 onBeforeUnmount(() => {
@@ -78,86 +94,63 @@ onBeforeUnmount(() => {
 function onMessage(event: MessageEvent) {
   const message = event.data
   if (message.command === 'dataDirectory' && message.data.code === '200') {
-    onDataDirectory(message.data.data ?? [])
+    onDataDirectory(message.data.data ?? {})
   } else if (message.command === 'dataImages' && message.data.code === '200') {
-    onDataImages(message.data.data ?? [])
+    onDataImages(message.data.data ?? {})
   }
 }
 
-function onDataDirectory(data: DirectoryNode[]) {
-  folders.value = data
-  if (folders.value.length) {
-    const prevFolder = curKey.value ? findFolderByPath(curKey.value) : undefined
-    if (prevFolder) {
-      pickFolder(prevFolder)
-    } else {
-      pickFolder(folders.value[0])
-    }
-  }
+function onDataDirectory(data: {
+  folders: DirectoryNode[]
+  files: Array<DirectoryNode | ImageNode>
+  types: string[]
+  initState: CurState
+}) {
+  vscodeApi.setState(data.initState)
+  folders.value = data.folders
+  curKey.value = data.initState.folder ?? ''
+  files.value = data.files
+  curPath.value = data.initState.file ?? ''
+  keywords.value = data.initState.keywords ?? ''
+  fileTypes.value = data.types.concat()
+  selectedFileTypes.value = data.initState.selectedFileTypes ?? []
 }
 
-function onDataImages(data: ImageNode[]) {
-  const types: string[] = []
-  data.forEach(f => {
-    const ext = f.ext?.replace('.', '')
-    if (ext && types.indexOf(ext) === -1) {
-      types.push(ext)
-    }
+function onDataImages(data: { files: ImageNode[]; types: string[] }) {
+  fileTypes.value = data.types.concat()
+  onSelectedTypesChange(data.types.concat())
+  files.value = files.value.concat(data.files)
+  chooseFile()
+}
+
+function pickFolder(data: DirectoryNode) {
+  vscodeApi.mergeState({
+    folder: data.path
   })
-  fileTypes.value = types.concat()
-  selectedFileTypes.value = types.concat()
-
-  files.value = files.value.concat(data)
-  if (init.value) {
-    init.value = false
-    const prevFile = curPath.value
-      ? files.value.find(f => f.path === curPath.value)
-      : undefined
-    chooseFile(prevFile)
-  } else {
-    chooseFile()
-  }
+  curKey.value = data.path
+  files.value = data.children?.length ? data.children.concat() : []
+  vscodeApi.fetchImages(data.path)
 }
 
-function findFolderByPath(p: string) {
-  let result: DirectoryNode | undefined = undefined
-
-  function check(node: DirectoryNode): boolean {
-    if (node.path === p) {
-      result = node
-      return true
-    }
-    return node.children ? node.children.some(check) : false
-  }
-
-  folders.value.some(check)
-
-  return result
-}
-
-function pickFolder(data: DirectoryNode | ImageNode) {
-  if (data.type === 'directory') {
-    vscodeApi.setState({
-      folder: data.path,
-      file: curPath.value
-    })
-    curKey.value = data.path
-    files.value = data.children?.length ? data.children.concat() : []
-    vscodeApi.fetchImages(data.path)
-  }
-}
-
-function chooseFile(data?: DirectoryNode | ImageNode) {
-  vscodeApi.setState({
-    folder: curKey.value,
-    file: data?.path
+function chooseFile(file?: string) {
+  curPath.value = file ?? ''
+  vscodeApi.mergeState({
+    file
   })
-  curPath.value = data?.path ?? ''
-  if (data?.path) {
-    previewIndex.value = imageList.value.findIndex(src => src === data.path)
-  } else {
-    previewIndex.value = -1
-  }
+}
+
+function onKeywordsChange(newKeywords: string) {
+  keywords.value = newKeywords
+  vscodeApi.mergeState({
+    keywords: newKeywords
+  })
+}
+
+function onSelectedTypesChange(newSelectedTypes: string[]) {
+  selectedFileTypes.value = newSelectedTypes
+  vscodeApi.mergeState({
+    selectedFileTypes: newSelectedTypes
+  })
 }
 </script>
 

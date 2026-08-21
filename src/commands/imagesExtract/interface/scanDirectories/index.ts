@@ -1,20 +1,94 @@
-import * as vscdoe from 'vscode'
+import * as vscode from 'vscode'
 import path from 'node:path'
 import fg from 'fast-glob'
+import { scanImages } from '../scanImages'
+import type { CurState, DirectoryNode, ImageNode } from '../types'
 
-interface DirectoryNode {
-  name: string
-  path: string
-  type: 'directory'
-  children: DirectoryNode[]
+function findFolderByPath(p: string, folders: DirectoryNode[]) {
+  let result: DirectoryNode | undefined
+
+  function check(node: DirectoryNode): boolean {
+    if (node.path === p) {
+      result = node
+      return true
+    }
+    return node.children ? node.children.some(check) : false
+  }
+
+  folders.some(check)
+
+  return result
 }
 
-export async function scanDirectories(rootDir: string) {
-  const config = vscdoe.workspace.getConfiguration('ImgTree')
+async function getInitFilesAndState(
+  rootDir: vscode.Uri,
+  state: CurState,
+  folders: DirectoryNode[]
+) {
+  let files: ImageNode[] = []
+  let folderChildren: DirectoryNode[] = []
+  let types: string[] = []
+  const initState: CurState = {}
+
+  if (folders.length) {
+    initState.folder = folders[0].path
+    folderChildren = folders[0].children?.length
+      ? folders[0].children.concat()
+      : []
+    if (state.folder) {
+      // 如果状态记录了选中的目录
+      const prevFolder = findFolderByPath(state.folder, folders)
+      if (prevFolder) {
+        // 如果目录还真实存在，还原目录选中状态
+        initState.folder = prevFolder.path
+        folderChildren = prevFolder.children?.length
+          ? prevFolder.children.concat()
+          : []
+      }
+    }
+
+    const result = await scanImages(rootDir, initState.folder)
+    files = result.images
+    types = result.types
+    if (files.length) {
+      initState.selectedFileTypes = types
+      if (Array.isArray(state.selectedFileTypes)) {
+        // 如果状态记录了选中的文件类型，则根据当前实际文件类型取交集
+        initState.selectedFileTypes = state.selectedFileTypes.filter(type =>
+          types.includes(type)
+        )
+      }
+
+      if (state.file) {
+        // 如果状态记录了选中的文件
+        const prevFile = files.find(f => f.path === state.file)
+        if (prevFile) {
+          // 如果文件还真实存在，还原文件选中状态
+          initState.file = prevFile.path
+        }
+      }
+    }
+  }
+
+  if (state.keywords) {
+    // 如果状态记录了关键词
+    initState.keywords = state.keywords
+  }
+
+  return {
+    files: [...folderChildren, ...files],
+    types,
+    initState
+  }
+}
+
+export async function scanDirectories(rootDir: vscode.Uri, state: CurState) {
+  const cwd = rootDir.fsPath
+  const config = vscode.workspace.getConfiguration('ImgTree')
   const ignore = config.get<string[]>('excludeFolders')
   // 使用 glob 获取所有子目录（包括嵌套）
   const dirPaths = await fg('**/', {
-    cwd: rootDir,
+    cwd,
     onlyDirectories: true, // 只匹配目录
     absolute: false, // 相对路径（相对于 cwd）
     deep: 10, // 最大递归深度（避免无限深）
@@ -28,7 +102,7 @@ export async function scanDirectories(rootDir: string) {
   // 构建树形结构
   const treeMap = new Map<string, DirectoryNode>()
   const root: DirectoryNode = {
-    name: path.basename(path.resolve(rootDir)),
+    name: path.basename(path.resolve(cwd)),
     path: '.',
     type: 'directory',
     children: []
@@ -62,5 +136,17 @@ export async function scanDirectories(rootDir: string) {
     }
   }
 
-  return [root]
+  const folders = [root]
+  const { files, types, initState } = await getInitFilesAndState(
+    rootDir,
+    state,
+    folders
+  )
+
+  return {
+    folders,
+    files,
+    types,
+    initState
+  }
 }

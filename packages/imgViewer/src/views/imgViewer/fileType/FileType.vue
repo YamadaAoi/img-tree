@@ -21,7 +21,7 @@ const props = defineProps<{
   selectedTypes: string[]
 }>()
 const emits = defineEmits<{
-  (e: 'update:selectedTypes', types: string[]): void
+  (e: 'selectedTypesChange', types: string[]): void
 }>()
 const fileTypes = ref<{ value: string; label: string }[]>([])
 
@@ -37,7 +37,7 @@ watch(
 )
 
 function onTypeChange(types: CheckboxValueType[]) {
-  emits('update:selectedTypes', types as string[])
+  emits('selectedTypesChange', types as string[])
 }
 </script>
 

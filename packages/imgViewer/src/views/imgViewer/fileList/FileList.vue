@@ -1,7 +1,7 @@
 <template>
   <div class="file-body" @click.stop="handleChooseFile()">
     <div
-      v-for="item in filteredFiles"
+      v-for="item in props.files"
       :key="item.path"
       :class="['file-item', item.path === props.curPath ? 'picked' : '']"
       @dblclick.stop="handlePickFolder(item)"
@@ -9,7 +9,7 @@
       <div class="file-icon" @click.stop="handleChooseFile(item)">
         <ElImage
           class="file-img"
-          :src="item.type === 'file' ? item.path : folder"
+          :src="item.type === 'file' ? item.uri : folder"
           fit="scale-down"
           lazy
           show-progress
@@ -20,21 +20,13 @@
         :title="item.name"
         @click.stop="clipboard(item.name)"
       >
-        <WordHighlight
-          v-if="item.type === 'file'"
-          :text="item.name"
-          :keywords="props.keywords"
-        />
-        <template v-else>
-          {{ item.name }}
-        </template>
+        <WordHighlight :text="item.name" :keywords="props.keywords" />
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
 import { ElImage } from 'element-plus'
 import WordHighlight from '@/components/wordHighlight/WordHighlight.vue'
 import { clipboard } from '@/util'
@@ -44,27 +36,12 @@ import folder from '@/assets/images/folder.svg'
 const props = defineProps<{
   files: Array<DirectoryNode | ImageNode>
   curPath: string
-  selectedTypes: string[]
   keywords: string
 }>()
 const emits = defineEmits<{
   (e: 'pick-folder', item: DirectoryNode): void
-  (e: 'choose-file', item?: DirectoryNode | ImageNode): void
+  (e: 'choose-file', item?: string): void
 }>()
-const filteredFiles = computed(() => {
-  return props.files.filter(item => {
-    if (item.type === 'directory') {
-      return true
-    }
-    const ext = item.ext?.replace('.', '')
-    if (!ext) {
-      return false
-    }
-    return (
-      props.selectedTypes.includes(ext) && item.name.includes(props.keywords)
-    )
-  })
-})
 
 function handlePickFolder(item: DirectoryNode | ImageNode) {
   if (item.type === 'directory') {
@@ -73,7 +50,7 @@ function handlePickFolder(item: DirectoryNode | ImageNode) {
 }
 
 function handleChooseFile(item?: DirectoryNode | ImageNode) {
-  emits('choose-file', item)
+  emits('choose-file', item?.path)
 }
 </script>
 

@@ -54,11 +54,30 @@ export async function imagesExtract(
         data: { to: '/imgViewer' }
       })
     } else if (message.command === 'fetchDirectory') {
-      scanDirectories(folderUri.fsPath)
+      scanDirectories(folderUri, message.data.state)
         .then(ds => {
           panel.webview.postMessage({
             command: 'dataDirectory',
-            data: { code: '200', data: ds }
+            data: {
+              code: '200',
+              data: {
+                folders: ds.folders,
+                files: ds.files.map(file => {
+                  if (file.type === 'directory') {
+                    return file
+                  } else {
+                    return {
+                      ...file,
+                      uri: panel.webview
+                        .asWebviewUri(vscode.Uri.file(file.path))
+                        .toString()
+                    }
+                  }
+                }),
+                types: ds.types,
+                initState: ds.initState
+              }
+            }
           })
         })
         .catch(err => {
@@ -70,19 +89,22 @@ export async function imagesExtract(
         })
     } else if (message.command === 'fetchImages') {
       scanImages(folderUri, message.data.folder)
-        .then(images => {
+        .then(ds => {
           panel.webview.postMessage({
             command: 'dataImages',
             data: {
               code: '200',
-              data: images.map(img => {
-                return {
-                  ...img,
-                  path: panel.webview
-                    .asWebviewUri(vscode.Uri.file(img.path))
-                    .toString()
-                }
-              })
+              data: {
+                files: ds.images.map(img => {
+                  return {
+                    ...img,
+                    uri: panel.webview
+                      .asWebviewUri(vscode.Uri.file(img.path))
+                      .toString()
+                  }
+                }),
+                types: ds.types
+              }
             }
           })
         })

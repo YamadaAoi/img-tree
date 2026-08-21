@@ -1,17 +1,10 @@
-import * as vscdoe from 'vscode'
-import path from 'node:path'
 import * as vscode from 'vscode'
+import path from 'node:path'
 import fg from 'fast-glob'
-
-interface ImageNode {
-  name: string
-  path: string
-  type: 'file'
-  ext: string
-}
+import type { ImageNode } from '../types'
 
 export async function scanImages(rootDir: vscode.Uri, dirPath: string) {
-  const config = vscdoe.workspace.getConfiguration('ImgTree')
+  const config = vscode.workspace.getConfiguration('ImgTree')
   const ignore = config.get<string[]>('excludeFiles')
   const imgTypes =
     config.get<string>('imgTypes') ??
@@ -28,14 +21,20 @@ export async function scanImages(rootDir: vscode.Uri, dirPath: string) {
     ignore
   })
 
+  const types: string[] = []
   const images: ImageNode[] = files.map(file => {
+    const ext = path.extname(file).toLowerCase().replace('.', '')
+    if (!types.includes(ext)) {
+      types.push(ext)
+    }
     return {
       name: path.basename(file),
       path: file,
+      uri: '',
       type: 'file',
-      ext: path.extname(file).toLowerCase()
+      ext
     }
   })
 
-  return images
+  return { images, types }
 }
