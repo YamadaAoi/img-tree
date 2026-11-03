@@ -6,7 +6,10 @@
       :class="['file-item', item.path === props.curPath ? 'picked' : '']"
       @dblclick.stop="handlePickFolder(item)"
     >
-      <div class="file-icon" @click.stop="handleChooseFile(item)">
+      <div
+        :class="['file-icon', item.type === 'file' ? 'is-file' : '']"
+        @click.stop="handleChooseFile(item)"
+      >
         <ElImage
           class="file-img"
           :src="item.type === 'file' ? item.uri : folder"
@@ -82,11 +85,27 @@ function handleChooseFile(item?: DirectoryNode | ImageNode) {
       display: flex;
       align-items: center;
       justify-content: center;
+      /* 容器自身的底色（不透明），这是棋盘格真正的“白色格子” */
+      background-color: var(--vscode-editor-background);
 
       .file-img {
         width: 100%;
         height: 100%;
       }
+    }
+
+    .is-file {
+      background-image:
+        linear-gradient(45deg, rgba(128, 128, 128, 0.15) 25%, transparent 25%),
+        linear-gradient(-45deg, rgba(128, 128, 128, 0.15) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, rgba(128, 128, 128, 0.15) 75%),
+        linear-gradient(-45deg, transparent 75%, rgba(128, 128, 128, 0.15) 75%);
+      background-size: 10px 10px;
+      background-position:
+        0 0,
+        0 5px,
+        5px -5px,
+        -5px 0px;
     }
 
     .file-name {
