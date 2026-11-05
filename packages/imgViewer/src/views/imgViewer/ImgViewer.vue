@@ -43,13 +43,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeMount, onBeforeUnmount, ref } from 'vue'
 import { ElImageViewer, ElSplitter, ElSplitterPanel } from 'element-plus'
 import FolderTree from './folderTree/FolderTree.vue'
 import FileList from './fileList/FileList.vue'
 import FileType from './fileType/FileType.vue'
 import FileName from './fileName/FileName.vue'
-import { vscodeApi, type CurState } from '@/api/vscode'
+import { vscodeApi } from '@/api/vscode'
 import type { DirectoryNode, ImageNode } from './imgViewerAble'
 
 const folders = ref<DirectoryNode[]>([])
@@ -58,6 +58,7 @@ const files = ref<Array<DirectoryNode | ImageNode>>([])
 const curPath = ref('')
 const fileTypes = ref<string[]>([])
 const selectedFileTypes = ref<string[]>([])
+const excludedTypes = ref<string[]>([])
 const keywords = ref('')
 const filteredFiles = computed(() => {
   return files.value.filter(item => {
@@ -82,9 +83,15 @@ const previewIndex = computed(() => {
   return index
 })
 
-onMounted(() => {
+onBeforeMount(() => {
   window.addEventListener('message', onMessage)
-  vscodeApi.fetchDirectory(vscodeApi.getState())
+  // 从本地持久化状态播种（keywords/勾选/选中项），host 只负责按目录推数据
+  const state = vscodeApi.getState()
+  keywords.value = state.keywords ?? ''
+  excludedTypes.value = state.excludedTypes ?? []
+  curPath.value = state.file ?? ''
+  curKey.value = state.folder ?? ''
+  vscodeApi.fetchData(state.folder ?? '')
 })
 
 onBeforeUnmount(() => {
@@ -93,34 +100,35 @@ onBeforeUnmount(() => {
 
 function onMessage(event: MessageEvent) {
   const message = event.data
-  if (message.command === 'dataDirectory' && message.data.code === '200') {
-    onDataDirectory(message.data.data ?? {})
-  } else if (message.command === 'dataImages' && message.data.code === '200') {
-    onDataImages(message.data.data ?? {})
+  if (message.command === 'dataRefresh' && message.data.code === '200') {
+    onDataRefresh(message.data.data ?? {})
   }
 }
 
-function onDataDirectory(data: {
+function onDataRefresh(data: {
   folders: DirectoryNode[]
   files: Array<DirectoryNode | ImageNode>
   types: string[]
-  initState: CurState
+  folder: string
 }) {
-  vscodeApi.setState(data.initState)
   folders.value = data.folders
-  curKey.value = data.initState.folder ?? ''
+  if (data.folder !== curKey.value) {
+    // 选中目录已被删除时 host 会回退到根目录，跟随切换
+    curKey.value = data.folder
+    vscodeApi.mergeState({ folder: data.folder })
+  }
+  // 类型选项始终是当前真实类型；勾选 = 全部类型 - 排除项：
+  // 取消勾选且仍存在→保持取消，勾选且仍存在→保持勾选，
+  // 新出现的类型→默认勾上，消失的类型→随选项一起消失
+  fileTypes.value = data.types.concat()
+  const excluded = excludedTypes.value.filter(t => data.types.includes(t))
+  excludedTypes.value = excluded
+  onSelectedTypesChange(data.types.filter(t => !excluded.includes(t)))
+  // 原位替换列表（key 为 path，滚动位置不丢失）
   files.value = data.files
-  curPath.value = data.initState.file ?? ''
-  keywords.value = data.initState.keywords ?? ''
-  fileTypes.value = data.types.concat()
-  selectedFileTypes.value = data.initState.selectedFileTypes ?? []
-}
-
-function onDataImages(data: { files: ImageNode[]; types: string[] }) {
-  fileTypes.value = data.types.concat()
-  onSelectedTypesChange(data.types.concat())
-  files.value = files.value.concat(data.files)
-  chooseFile()
+  if (curPath.value && !data.files.some(f => f.path === curPath.value)) {
+    chooseFile()
+  }
 }
 
 function pickFolder(data: DirectoryNode) {
@@ -128,8 +136,8 @@ function pickFolder(data: DirectoryNode) {
     folder: data.path
   })
   curKey.value = data.path
-  files.value = data.children?.length ? data.children.concat() : []
-  vscodeApi.fetchImages(data.path)
+  chooseFile()
+  vscodeApi.fetchData(data.path)
 }
 
 function chooseFile(file?: string) {
@@ -148,9 +156,11 @@ function onKeywordsChange(newKeywords: string) {
 
 function onSelectedTypesChange(newSelectedTypes: string[]) {
   selectedFileTypes.value = newSelectedTypes
-  vscodeApi.mergeState({
-    selectedFileTypes: newSelectedTypes
-  })
+  // 排除项 = 当前全部类型 - 勾选项，作为唯一持久化依据
+  excludedTypes.value = fileTypes.value.filter(
+    t => !newSelectedTypes.includes(t)
+  )
+  vscodeApi.mergeState({ excludedTypes: excludedTypes.value })
 }
 </script>
 

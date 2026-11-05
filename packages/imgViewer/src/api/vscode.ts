@@ -3,7 +3,7 @@ import type { WebviewApi } from 'vscode-webview'
 export interface CurState {
   folder?: string
   file?: string
-  selectedFileTypes?: string[]
+  excludedTypes?: string[]
   keywords?: string
 }
 
@@ -22,18 +22,9 @@ class VscodeApi {
     })
   }
 
-  fetchDirectory(state: CurState) {
+  fetchData(folder: string) {
     this.#vscode?.postMessage({
-      command: 'fetchDirectory',
-      data: {
-        state
-      }
-    })
-  }
-
-  fetchImages(folder: string) {
-    this.#vscode?.postMessage({
-      command: 'fetchImages',
+      command: 'fetchData',
       data: {
         folder
       }

@@ -12,10 +12,3 @@ export interface ImageNode {
   type: 'file'
   ext: string
 }
-
-export interface CurState {
-  folder?: string
-  file?: string
-  selectedFileTypes?: string[]
-  keywords?: string
-}
