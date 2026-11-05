@@ -1,0 +1,39 @@
+# AGENTS.md
+
+VS Code extension (ImgTree) in a pnpm workspace with two packages:
+
+- `.` (root) — extension host code in `src/`, bundled by esbuild (CJS) to `dist/extension.js`; entry `src/extension.ts`.
+- `packages/imgViewer` — Vue 3 + Vite + Element Plus webview app. Its Vite build outputs to the root `dist/webview/` (see `outDir` in `vite.config.ts`), which the extension loads directly as the webview HTML.
+
+## Commands
+
+- `pnpm compile` — full verification loop for extension code: `check-types` → `lint` → esbuild bundle. Run this before considering work done.
+- `pnpm watch` — parallel esbuild + tsc watch; this is what F5's preLaunch task uses.
+- `pnpm build-vue` — build webview into `dist/webview/`.
+- `pnpm dev-vue` — run the webview standalone in a browser with HMR (no VS Code host; extension postMessage API is absent in this mode).
+- `pnpm --filter "img-viewer" lint` — lint the Vue package. Root `pnpm lint` only covers `src/`.
+- `pnpm format` — prettier on root `src/` only.
+- `pnpm vsix` — `build-vue` + `vsce package`. Requires `@vscode/vsce` installed globally (`npm i -g @vscode/vsce`).
+- Versioning uses changesets: `pnpm csadd` (create), `pnpm csver` (apply). Base branch is `master`.
+
+## Testing gotcha
+
+`pnpm test` is currently broken: `compile-tests` (`tsc -p . --outDir out`) emits nothing because `tsconfig.json` sets `noEmit: true` (the CLI `--outDir` flag does not override it), so `out/test/**/*.test.js` never exists for `vscode-test` to run. Do not rely on tests for verification; use `pnpm compile` instead.
+
+## Runtime wiring (non-obvious)
+
+- The webview panel loads `dist/webview/index.html` and rewrites `./assets/...` references to webview URIs in `src/commands/imagesExtract/imagesExtract.ts`.
+- Extension ↔ webview communicate via postMessage: webview sends `pageReady` / `fetchData` (folder); host replies `navigate` (to route `/imgViewer`) / `dataRefresh` (tree + resolved folder + current-folder file list + types). All rendering goes through the single `dataRefresh` path; the webview seeds restored state (keywords/type selection/selected file) from its own persisted state on mount — the host does not participate in state restoration.
+- The host watches the selected folder (`createFileSystemWatcher` on `**/*`, 1.38-compatible glob overload only) and pushes a debounced, deduped `dataRefresh`; watcher events under `ImgTree.excludeFolders` are filtered out before scheduling a rescan (`interface/ignoreMatch.ts`). It tracks the webview's current folder from `fetchData`. The webview persists only unchecked types (`excludedTypes`) in its state; on each `dataRefresh`, checked = all pushed types − excluded (so unchecked-but-present stays unchecked, new types are auto-checked, vanished types drop out).
+- F5 debugging builds only the extension. After changing Vue code you must re-run `pnpm build-vue` for the debug host to pick it up.
+- `dist/` is gitignored: a fresh clone needs both `pnpm compile` and `pnpm build-vue` before the extension runs.
+- esbuild bundles only `src/extension.ts` with `external: ['vscode']`; `.vscodeignore` ships only `dist/**` in the vsix (`packages/**`, `src/**` are excluded).
+
+## Constraints
+
+- `engines.vscode` is `^1.38.0` with `@types/vscode` 1.38 — only VS Code API ≤ 1.38 is available; bump both together if you need newer APIs.
+
+## Style
+
+- Prettier is enforced through ESLint (`eslint-plugin-prettier`), so `pnpm lint` fails on formatting: no semicolons, single quotes, no trailing commas, `arrowParens: 'avoid'`, 2-space indent.
+- Pre-commit hook (simple-git-hooks + lint-staged) auto-runs `prettier --write` and `eslint --fix` on staged files; it is installed by the root `postinstall` during `pnpm install` (`.npmrc` sets `enable-pre-post-scripts = true`).
