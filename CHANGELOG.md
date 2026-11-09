@@ -1,5 +1,11 @@
 # img-tree
 
+## 1.0.0
+
+### Major Changes
+
+- 添加删除、编辑能力
+
 ## 0.0.2
 
 ### Patch Changes
