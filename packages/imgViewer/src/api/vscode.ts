@@ -31,6 +31,25 @@ class VscodeApi {
     })
   }
 
+  deleteEntries(paths: string[]) {
+    this.#vscode?.postMessage({
+      command: 'deleteEntries',
+      data: {
+        paths
+      }
+    })
+  }
+
+  renameFile(path: string, name: string) {
+    this.#vscode?.postMessage({
+      command: 'renameFile',
+      data: {
+        path,
+        name
+      }
+    })
+  }
+
   mergeState(state: CurState) {
     const prevState = this.getState()
     this.setState({

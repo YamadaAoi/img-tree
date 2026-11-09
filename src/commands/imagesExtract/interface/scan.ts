@@ -42,11 +42,11 @@ export async function scan(rootDir: vscode.Uri, dirPath: string) {
   // 添加根目录本身
   dirPaths.unshift('') // 根目录用空字符串表示
 
-  // 构建树形结构
+  // 构建树形结构（节点 path 与 ImageNode 一致，统一为绝对路径）
   const treeMap = new Map<string, DirectoryNode>()
   const root: DirectoryNode = {
     name: path.basename(path.resolve(cwd)),
-    path: '.',
+    path: cwd,
     type: 'directory',
     children: []
   }
@@ -65,7 +65,7 @@ export async function scan(rootDir: vscode.Uri, dirPath: string) {
 
     const node: DirectoryNode = {
       name,
-      path: relativeDir,
+      path: path.resolve(cwd, relativeDir),
       type: 'directory',
       children: []
     }
@@ -84,10 +84,9 @@ export async function scan(rootDir: vscode.Uri, dirPath: string) {
   const folder = findFolderByPath(dirPath, folders) ?? folders[0]
   const folderChildren = folder.children?.length ? folder.children.concat() : []
 
-  // 当前目录内的图片
-  const imgCwd = vscode.Uri.joinPath(rootDir, folder.path).fsPath
+  // 当前目录内的图片（folder.path 已是绝对路径）
   const imgPaths = await fg(imgTypes, {
-    cwd: imgCwd,
+    cwd: folder.path,
     onlyFiles: true,
     absolute: true,
     caseSensitiveMatch: false,

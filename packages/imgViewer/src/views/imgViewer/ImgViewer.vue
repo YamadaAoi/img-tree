@@ -25,10 +25,17 @@
               :files="filteredFiles"
               :cur-path="curPath"
               :keywords="keywords"
+              :check-list="checkList"
               @pick-folder="pickFolder"
               @choose-file="chooseFile"
+              @check-item="checkItem"
             />
           </div>
+          <FileOptions
+            :checked="checkList"
+            :total="filteredFiles.length"
+            @check-all-change="handleCheckAllChange"
+          />
         </div>
       </ElSplitterPanel>
     </ElSplitter>
@@ -43,12 +50,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeMount, onBeforeUnmount, ref } from 'vue'
-import { ElImageViewer, ElSplitter, ElSplitterPanel } from 'element-plus'
+import { computed, onBeforeMount, onBeforeUnmount, ref, watch } from 'vue'
+import {
+  ElImageViewer,
+  ElMessage,
+  ElSplitter,
+  ElSplitterPanel,
+  type MessageHandler
+} from 'element-plus'
 import FolderTree from './folderTree/FolderTree.vue'
 import FileList from './fileList/FileList.vue'
 import FileType from './fileType/FileType.vue'
 import FileName from './fileName/FileName.vue'
+import FileOptions from './fileOptions/FileOptions.vue'
 import { vscodeApi } from '@/api/vscode'
 import type { DirectoryNode, ImageNode } from './imgViewerAble'
 
@@ -60,6 +74,7 @@ const fileTypes = ref<string[]>([])
 const selectedFileTypes = ref<string[]>([])
 const excludedTypes = ref<string[]>([])
 const keywords = ref('')
+const checkList = ref<string[]>([])
 const filteredFiles = computed(() => {
   return files.value.filter(item => {
     return (
@@ -98,11 +113,32 @@ onBeforeUnmount(() => {
   window.removeEventListener('message', onMessage)
 })
 
+// 列表刷新（dataRefresh）只修剪已消失的勾选项——被筛选隐藏的保持勾选；
+// 筛选条件变化才全清，避免误删当前看不见的选中项
+watch(files, val => {
+  const paths = new Set(val.map(f => f.path))
+  checkList.value = checkList.value.filter(p => paths.has(p))
+})
+
+let closeRefreshError: MessageHandler | undefined
+
 function onMessage(event: MessageEvent) {
   const message = event.data
-  if (message.command === 'dataRefresh' && message.data.code === '200') {
-    onDataRefresh(message.data.data ?? {})
+  if (message.command === 'dataRefresh') {
+    if (message.data.code === '200') {
+      onDataRefresh(message.data.data ?? {})
+    } else {
+      showRefreshError(message.data.message)
+    }
   }
+}
+
+function showRefreshError(message?: string) {
+  const tip = message || 'ImgTree refresh failed'
+  console.error(`[ImgTree] dataRefresh failed: ${tip}`)
+  // 关闭上一次提示，避免连续失败时堆叠
+  closeRefreshError?.close()
+  closeRefreshError = ElMessage.error(tip)
 }
 
 function onDataRefresh(data: {
@@ -123,7 +159,7 @@ function onDataRefresh(data: {
   fileTypes.value = data.types.concat()
   const excluded = excludedTypes.value.filter(t => data.types.includes(t))
   excludedTypes.value = excluded
-  onSelectedTypesChange(data.types.filter(t => !excluded.includes(t)))
+  applySelectedTypes(data.types.filter(t => !excluded.includes(t)))
   // 原位替换列表（key 为 path，滚动位置不丢失）
   files.value = data.files
   if (curPath.value && !data.files.some(f => f.path === curPath.value)) {
@@ -147,14 +183,35 @@ function chooseFile(file?: string) {
   })
 }
 
+function checkItem(flag: boolean, p: string) {
+  if (flag) {
+    checkList.value = checkList.value.concat(
+      checkList.value.includes(p) ? [] : [p]
+    )
+  } else {
+    checkList.value = checkList.value.filter(val => val !== p)
+  }
+}
+
+function handleCheckAllChange(flag: boolean) {
+  checkList.value = flag ? filteredFiles.value.map(f => f.path) : []
+}
+
 function onKeywordsChange(newKeywords: string) {
   keywords.value = newKeywords
   vscodeApi.mergeState({
     keywords: newKeywords
   })
+  checkList.value = []
 }
 
+// 用户点击类型筛选：更新勾选并全清多选（避免误删当前看不见的项）
 function onSelectedTypesChange(newSelectedTypes: string[]) {
+  applySelectedTypes(newSelectedTypes)
+  checkList.value = []
+}
+
+function applySelectedTypes(newSelectedTypes: string[]) {
   selectedFileTypes.value = newSelectedTypes
   // 排除项 = 当前全部类型 - 勾选项，作为唯一持久化依据
   excludedTypes.value = fileTypes.value.filter(
@@ -190,7 +247,7 @@ function onSelectedTypesChange(newSelectedTypes: string[]) {
     }
     .list {
       width: 100%;
-      height: calc(100% - 64px);
+      height: calc(100% - 112px);
       padding: 16px;
     }
   }

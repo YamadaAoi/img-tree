@@ -23,7 +23,13 @@ export default defineConfig(() => {
     server: {
       host: true,
       hmr: true,
-      open: true
+      // 供 host 侧 F5（IMG_TREE_DEV_SERVER）直连加载，端口固定避免配置漂移；
+      // 被占用时直接报错，不再自动递增
+      strictPort: true,
+      open: false,
+      // VS Code webview 的 origin 是 vscode-webview://<uuid>，不在 vite 默认的
+      // CORS 白名单（localhost 类来源）里，module script 会被浏览器整体拦截
+      cors: { origin: '*' }
     }
   }
   return config
